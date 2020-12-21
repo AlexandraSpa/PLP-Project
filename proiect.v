@@ -70,10 +70,11 @@ Definition adress_env :=
    fun (s : string) => adr s.
 Compute (adress_env "s").
 
-Definition array_env := nat -> Value. (* adresa -> valoare*)
+Definition array_env := nat -> Value. (* adresa -> valoare*) 
+             (*a [: 5] -> valoarea pe care o intalnesc la (adresa lui a) +5*)
 
 (*Exemplu*)
-Definition array_val : array_env :=
+Definition array_env0 : array_env :=
     fun (adr : nat) => undef.
 
 Definition update_array (a : array_env)
@@ -101,6 +102,8 @@ Notation "A *' B" := (amul A B) (at level 46).
 Notation "A -' B" := (adif A B) (at level 48).
 Coercion anum : nat >-> AExp.
 Coercion avar : Variables >-> AExp.
+
+(*Exemple*)
 
 Compute "f"_( 3 )_.
 Definition literal1 : literal :=
@@ -136,7 +139,7 @@ Inductive Stmt :=
 | For : Stmt -> BExp -> Stmt -> Stmt -> Stmt.
 
 Notation "'int' X" := (decl X) (at level 50).
-Notation "'auto' s '[=]' x 'Return' S 'End'" := (decl_lambda_expr s x S) (at level 50(*, l at level 9*)).
+Notation "'auto' s '[=]' x 'Return' S 'End'" := (decl_lambda_expr s x S) (at level 50).
 Notation "X ::= A" := (assignment X A) (at level 50).
 Notation "S1 ;; S2" := (sequence S1 S2) (at level 90, right associativity).
 Notation "'If' A 'Then' B 'Else' C 'End'" := (ifthenelse A B C)(at level 97).
