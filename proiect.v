@@ -80,18 +80,30 @@ Definition update_array (a : array_env)
     then nat_value v
     else (a y).
 
+Definition literal := nat -> nat.
+
 Inductive AExp :=
+| aliteral : nat -> literal -> AExp
+| alambda_call : string -> nat -> AExp
 | avar : Variables -> AExp
 | anum : nat -> AExp
 | aplus : AExp -> AExp -> AExp
 | adif: AExp ->AExp -> AExp
 | amul : AExp -> AExp -> AExp.
 
+Notation "f '_(' n ')_'" := (alambda_call f n) (at level 40).
+Notation "A '_lit' lit" := (aliteral A lit) (at level 40).
 Notation "A +' B" := (aplus A B) (at level 48).
 Notation "A *' B" := (amul A B) (at level 46).
 Notation "A -' B" := (adif A B) (at level 48).
 Coercion anum : nat >-> AExp.
 Coercion avar : Variables >-> AExp.
+
+Compute "f"_( 3 )_.
+Definition literal1 : literal :=
+   fun (n: nat) => n+3.
+
+Check 3 _lit literal1.
 Check (2 +' 3 *' 5).
 Check (2 +' 3 *' "n").
 Check "a"[:3] +' 5.
@@ -110,6 +122,7 @@ Notation "A <=' B" := (blessthan A B) (at level 53).
 Inductive Stmt :=
 | def : Variables -> nat -> Stmt
 | decl : Variables -> Stmt
+| decl_lambda_expr : string -> Variables -> AExp -> Stmt
 | assignment : string -> AExp -> Stmt
 | initializer_list : string -> list nat -> Stmt
 | break : Stmt
@@ -120,6 +133,7 @@ Inductive Stmt :=
 | For : Stmt -> BExp -> Stmt -> Stmt -> Stmt.
 
 Notation "'int' X" := (decl X) (at level 50).
+Notation "'auto' s '[=]' x 'Return' S 'End'" := (decl_lambda_expr s x S) (at level 50(*, l at level 9*)).
 Notation "X ::= A" := (assignment X A) (at level 50).
 Notation "S1 ;; S2" := (sequence S1 S2) (at level 90, right associativity).
 Notation "'If' A 'Then' B 'Else' C 'End'" := (ifthenelse A B C)(at level 97).
@@ -145,20 +159,23 @@ Compute int "c"[: 5].
 (*Totodata, pentru pentru a evita folosirea ghilimelelor de fiecare data,
 am definit string-urile folosite in programele de mai jos*)
 
-Definition a : string := "n".
+Definition x : string := "x".
+Definition a : string := "a".
 Definition n : string := "n".
 Definition i : string := "i".
 Definition sum := "sum".
 
 Compute 
   #define "MAX" 1000;; 
+  auto "f" [=] (x) Return (x +' 3) End;;
   int a[: 2];;
   int n;;
   int i;;
   int sum;;
+  sum ::= "f"_( 3 )_;;
   initializer_list a (cons 1 (cons 2 nil));;
-  n ::= 1 ;;
-  i ::= 1 ;; 
+  n ::= 1 _lit literal1 ;;
+  i ::= a[: 0] ;; 
   sum ::= 0 ;;
   while ( i <=' n ) (
           sum ::= sum +' i ;;
