@@ -108,9 +108,11 @@ Inductive BExp :=
 Notation "A <=' B" := (blessthan A B) (at level 53).
 
 Inductive Stmt :=
+| def : Variables -> nat -> Stmt
 | decl : Variables -> Stmt
 | assignment : string -> AExp -> Stmt
 | initializer_list : string -> list nat -> Stmt
+| break : Stmt
 | sequence : Stmt -> Stmt -> Stmt
 | while : BExp -> Stmt -> Stmt
 | ifthen : BExp -> Stmt -> Stmt
@@ -123,6 +125,17 @@ Notation "S1 ;; S2" := (sequence S1 S2) (at level 90, right associativity).
 Notation "'If' A 'Then' B 'Else' C 'End'" := (ifthenelse A B C)(at level 97).
 Notation "'If' A 'Then' B 'End'" := (ifthen A B)(at level 97).
 Notation "'For(' A ';;;' B ';;;' C ')Do' D" := (For A B C D )(at level 98).
+Notation "'#define' A B" := (def A B) (at level 50, A at level 9).
+
+Definition is_break_on (env: Env) :=
+if (Value_beq (env "Break") 0)
+then false
+else true.
+
+Definition env3 := update env0 "Break" 0.
+Compute is_break_on env3.
+
+Compute #define "MAX" 1000.
 
 Compute For( "i"::=1 ;;; "i"<=' "n" ;;; "i"::= "i" +' 1 )Do
         "sum"::= "sum" +' 1.
@@ -138,6 +151,7 @@ Definition i : string := "i".
 Definition sum := "sum".
 
 Compute 
+  #define "MAX" 1000;; 
   int a[: 2];;
   int n;;
   int i;;
@@ -148,7 +162,8 @@ Compute
   sum ::= 0 ;;
   while ( i <=' n ) (
           sum ::= sum +' i ;;
-          i ::= i +' 1
+          i ::= i +' 1;;
+          break
         );;
   If ( i <=' n ) Then
                      ( sum ::= sum +' i ;;
