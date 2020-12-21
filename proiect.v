@@ -59,6 +59,8 @@ Definition env2 := env1 [ 1045 /' "n" ].
 Compute (env2 "n").
 
 Definition adress := string -> nat.
+
+(*Exemplu*)
 Definition adr : adress :=
    fun (s : string) => 0. 
 
@@ -68,8 +70,9 @@ Definition adress_env :=
    fun (s : string) => adr s.
 Compute (adress_env "s").
 
-Definition array_env := nat -> Value.
+Definition array_env := nat -> Value. (* adresa -> valoare*)
 
+(*Exemplu*)
 Definition array_val : array_env :=
     fun (adr : nat) => undef.
 
@@ -146,6 +149,7 @@ if (Value_beq (env "Break") 0)
 then false
 else true.
 
+(*Exemplu*)
 Definition env3 := update env0 "Break" 0.
 Compute is_break_on env3.
 
