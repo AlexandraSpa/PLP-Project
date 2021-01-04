@@ -1,1 +1,536 @@
+Require Import String.
+Open Scope string_scope.
 
+Definition eqb_string (x y : string) : bool :=
+  if string_dec x y then true else false.
+
+Compute eqb_string "A" "A".
+
+
+(* Environment *)
+
+Inductive Value :=
+| undef : Value
+| nat_value : nat -> Value
+| bool_val : bool -> Value.
+
+Coercion nat_value : nat >-> Value. 
+
+Scheme Equality for Value.
+
+Inductive Variables :=
+| simple: string -> Variables
+| array: string -> nat -> Variables.
+
+Scheme Equality for Variables.
+
+Notation "A '[:' B ']'" := (array A B) (at level 40).
+Coercion simple : string >-> Variables.
+Compute "a"[: 5].
+
+Definition Env := Variables -> Value.
+
+Definition env0 : Env := 
+   fun (s : Variables) => undef.
+
+Compute (env0 ("a"[: 3])).
+
+Definition is_declared (x : Variables) (env : Env) :=
+ if (Value_beq (env x) undef)
+ then false
+ else true.
+
+Compute is_declared "C" env0.
+
+Definition update (env : Env)
+           (x : Variables) (v : nat) :=
+  fun y =>
+    if (Variables_beq y x)
+    then nat_value v
+    else (env y).
+
+Definition env1 := update env0 ("a"[: 3]) 10.
+
+Compute env1 ("a"[: 3]). 
+Compute env1 "a".
+Compute env1 ("b"[: 3]).
+
+(*Definition max (a : string) :=
+ fun (s : string) => 0.
+
+Definition update_max (a: string) (n: nat) :=
+ fun y =>
+    if (eqb_string y a)
+    then n
+    else max y. *)
+
+Notation "S [ V /' X ]" := (update S X V) (at level 0).
+
+Definition env2 := env1 [ 1045 /' "n" ].
+Compute (env2 "n").
+
+(*Definition up_array {w: nat} (env : Env) (a : string) (max : nat) :=
+fun y =>
+   if (andb (Variables_beq y (array a w)) (Nat.leb w max))
+   then nat_value 0
+   else (env y).
+
+Compute env1 ("b"[: 3]).
+Definition env9 := (up_array env1 "b" 3).*)
+
+
+(*Definition array_env := nat -> Value. (* adresa -> valoare*) 
+             (*a [: 5] -> valoarea pe care o intalnesc la (adresa lui a) +5*)
+
+(*Exemplu*)
+Definition array_env0 : array_env :=
+    fun (adr : nat) => undef. *)
+
+
+Definition literal := nat -> nat.
+
+Inductive AExp :=
+| aliteral : nat -> literal -> AExp
+| alambda_call : string -> nat -> AExp
+| avar : Variables -> AExp
+| anum : nat -> AExp
+| aplus : AExp -> AExp -> AExp
+| adif: AExp ->AExp -> AExp
+| amul : AExp -> AExp -> AExp.
+
+Notation "f '_(' n ')_'" := (alambda_call f n) (at level 40).
+Notation "A '_lit' lit" := (aliteral A lit) (at level 40).
+Notation "A +' B" := (aplus A B) (at level 48).
+Notation "A *' B" := (amul A B) (at level 46).
+Notation "A -' B" := (adif A B) (at level 48).
+Coercion anum : nat >-> AExp.
+Coercion avar : Variables >-> AExp.
+
+(*Exemple*)
+
+Compute "f"_( 3 )_.
+Definition literal1 : literal :=
+   fun (n: nat) => n+3.
+
+Check 3 _lit literal1.
+Check (2 +' 3 *' 5).
+Check (2 +' 3 *' "n").
+Check "a"[:3] +' 5.
+Check 3 +'  "a"[:10].
+
+(* Big-step SOS for arithmetic expressions *)
+
+Reserved Notation "A =[ S ]=> N" (at level 60).
+
+Inductive aeval : AExp -> Env -> nat -> Prop :=
+| const : forall n sigma, anum n =[ sigma ]=> n (* <n,sigma> => <n> *) 
+| var : forall v v' sigma, 
+      sigma v= nat_value v'->
+     avar v =[ sigma ]=> v' (* <v,sigma> => sigma(x) *)  
+| add : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = i1 + i2 ->
+    a1 +' a2 =[sigma]=> n
+| times : forall a1 a2 i1 i2 sigma n,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    n = i1 * i2 ->
+    a1 *' a2 =[sigma]=> n
+| diff : forall a3 a4 i3 i4 sigma n, 
+    a3 =[ sigma ]=> i3 ->
+    a4 =[ sigma ]=> i4 ->
+    (i4 <= i3) ->
+    n = i3 - i4 ->
+    a3 -' a4 =[sigma]=> n
+where "a =[ sigma ]=> n" := (aeval a sigma n).
+
+Hint Constructors aeval.
+
+Example ex0 : 10 =[ env1 ]=> 10.
+Proof.
+  apply const.
+Qed.
+
+Example ex2' : 2 +' 2 =[ env1 ]=> 4.
+Proof.
+  eapply add; eauto.
+Qed.
+
+Example ex3' : 2 -' 2 =[ env1 ]=> 0.
+Proof.
+  eapply diff; eauto.
+Qed.
+
+Compute env1 ("a"[: 3]).
+
+Require Import Omega.
+
+Example ex4' : 2 +' "a"[: 3] =[env1]=> 12.
+Proof.
+  eapply add.
+  * apply const.
+  * apply var. unfold env1. unfold update. simpl. reflexivity.
+  * omega.
+Qed.
+
+
+Inductive BExp :=
+| btrue : BExp
+| bfalse : BExp
+| blessthan : AExp -> AExp -> BExp
+| bnot : BExp -> BExp
+| band : BExp -> BExp -> BExp.
+
+Notation "A <=' B" := (blessthan A B) (at level 53).
+
+(* Big-step SOS for boolean expressions *)
+
+Reserved Notation "B ={ S }=> B'" (at level 70).
+
+Inductive beval : BExp -> Env -> bool -> Prop :=
+| e_true : forall sigma, btrue ={ sigma }=> true
+| e_false : forall sigma, bfalse ={ sigma }=> false
+| e_lessthan : forall a1 a2 i1 i2 sigma b,
+    a1 =[ sigma ]=> i1 ->
+    a2 =[ sigma ]=> i2 ->
+    b = Nat.leb i1 i2 ->
+    a1 <=' a2 ={ sigma }=> b
+| e_nottrue : forall b sigma,
+    b ={ sigma }=> true ->
+    (bnot b) ={ sigma }=> false
+| e_notfalse : forall b sigma,
+    b ={ sigma }=> false ->
+    (bnot b) ={ sigma }=> true
+| e_andtrue : forall b1 b2 sigma t,
+    b1 ={ sigma }=> true ->
+    b2 ={ sigma }=> t ->
+    band b1 b2 ={ sigma }=> t
+| e_andfalse : forall b1 b2 sigma,
+    b1 ={ sigma }=> false ->
+    band b1 b2 ={ sigma }=> false
+where "B ={ S }=> B'" := (beval B S B').
+
+Example and_first : band btrue bfalse ={ env1 }=> false.
+Proof.
+  apply e_andtrue.
+  - apply e_true.
+  - apply e_false.
+Qed.
+Compute update env1 "n" 10.
+Example ex5: "n" <=' 11 ={ update env1 "n" 10 }=> true.
+Proof.
+  eapply e_lessthan.
+  - eapply var. unfold env1. unfold update. simpl. reflexivity.
+  - eapply const.
+  - simpl. reflexivity.
+Qed.
+
+
+Inductive Stmt :=
+| def : Variables -> nat -> Stmt
+| decl : Variables -> Stmt
+| decl_lambda_expr : string -> Variables -> AExp -> Stmt
+| assignment : Variables -> AExp -> Stmt
+| initializer_list : string -> list nat -> Stmt
+| break : Stmt
+| sequence : Stmt -> Stmt -> Stmt
+| while : BExp -> Stmt -> Stmt
+| ifthen : BExp -> Stmt -> Stmt
+| ifthenelse: BExp -> Stmt -> Stmt -> Stmt
+| For : Stmt -> BExp -> Stmt -> Stmt -> Stmt.
+
+Notation "'int' X" := (decl X) (at level 50).
+Notation "'auto' s '[=]' x 'Return' S 'End'" := (decl_lambda_expr s x S) (at level 50).
+Notation "X ::= A" := (assignment X A) (at level 50).
+Notation "S1 ;; S2" := (sequence S1 S2) (at level 90, right associativity).
+Notation "'If' A 'Then' B 'Else' C 'End'" := (ifthenelse A B C)(at level 97).
+Notation "'If' A 'Then' B 'End'" := (ifthen A B)(at level 97).
+Notation "'For(' A ';;;' B ';;;' C ')Do' D" := (For A B C D )(at level 98).
+Notation "'#define' A B" := (def A B) (at level 50, A at level 9).
+
+Definition is_break_on (env: Env) :=
+if (Value_beq (env "Break") 0)
+then false
+else true.
+
+(*Exemplu*)
+Definition env3 := update env0 "Break" 0.
+Compute is_break_on env3.
+
+Compute #define "MAX" 1000.
+
+Compute For( "i"::=1 ;;; "i"<=' "n" ;;; "i"::= "i" +' 1 )Do
+        "sum"::= "sum" +' 1.
+Compute int "c".
+Compute int "c"[: 5].
+
+(*Totodata, pentru pentru a evita folosirea ghilimelelor de fiecare data,
+am definit string-urile folosite in programele de mai jos*)
+
+Definition x : string := "x".
+Definition a : string := "a".
+Definition n : string := "n".
+Definition i : string := "i".
+Definition sum := "sum".
+
+Compute 
+  #define "MAX" 1000;; 
+  auto "f" [=] (x) Return (x +' 3) End;;
+  int a[: 2];;
+  int n;;
+  int i;;
+  int sum;;
+  sum ::= "f"_( 3 )_;;
+  initializer_list a (cons 1 (cons 2 nil));;
+  n ::= 1 _lit literal1 ;;
+  i ::= a[: 0] ;; 
+  sum ::= 0 ;;
+  while ( i <=' n ) (
+          sum ::= sum +' i ;;
+          i ::= i +' 1;;
+          break
+        );;
+  If ( i <=' n ) Then
+                     ( sum ::= sum +' i ;;
+                     i ::= i +' 1 )
+  Else (sum ::= 0)
+  End;;
+  If ( i <=' n ) Then
+                     ( sum ::= sum +' i ;;
+                     i ::= i +' 1 )
+  End;;
+  For( i ::= 2 ;;; i<=' n ;;; i ::= i+'1 )Do
+          sum ::= sum +' i.
+
+(* Big-step SOS for statements *)
+
+Reserved Notation "S -{ Sigma }-> Sigma'" (at level 60).
+
+(*o functie care sa determine dimensiunea maxima a unui vector
+
+Definition Max := string -> nat.
+
+(*Exemplu*)
+Definition max0 : Max :=
+   fun (s : string) => 0. 
+
+Compute max0 "s". 
+Definition update_max (m : Max)
+           (s: string) (n : nat) :=
+  fun y =>
+    if (eqb_string y s)
+    then n
+    else (m y).
+
+Definition max1 := update_max max0 "s" 4.
+Compute max1 "s". *)
+
+(* functia folosita pentru listele de initializare *)
+Definition list1 := cons 1 (cons 2 nil).
+
+Compute list1.
+
+Fixpoint initializer_l (s : string) (min : nat) (env : Env) (l : list nat) :=
+match l with
+| nil => env
+| cons n l => initializer_l s (S(min)) (update env (array s min) n) l
+ end.
+
+Compute (initializer_l "a" 1 env0 list1) ("a"[:2]).
+
+Inductive eval : Stmt -> Env -> Env -> Prop :=
+| e_decl: forall x sigma sigma',
+    sigma' = (update sigma x 0) ->
+    (decl x) -{ sigma}-> sigma'
+| e_decl_array: forall x sigma sigma' s n,
+    x= (array s n) ->
+    sigma' = (update sigma s n) ->
+    (decl x) -{ sigma}-> sigma'
+| e_assignment: forall a i x sigma sigma',
+    is_declared x sigma = true ->
+    a =[ sigma ]=> i ->
+    sigma' = (update sigma x i) ->
+    (x ::= a) -{ sigma }-> sigma'
+| e_assignment_array: forall a i x sigma sigma' s n i1,
+    is_declared x sigma = false ->
+    x= (array s n) ->
+    s =[ sigma ]=> i1 ->
+    (n <= i1) ->
+    a =[ sigma ]=> i ->
+    sigma' = (update sigma x i) ->
+    (x ::= a) -{ sigma }-> sigma'
+| e_initializer_list : forall s list sigma sigma',
+    sigma' = (initializer_l s 1 sigma list) ->
+    (initializer_list s list) -{ sigma}-> sigma'
+| e_seq : forall s1 s2 sigma sigma1 sigma2,
+    s1 -{ sigma }-> sigma1 ->
+    s2 -{ sigma1 }-> sigma2 ->
+    (s1 ;; s2) -{ sigma }-> sigma2
+| e_ifthenfalse : forall b s1 sigma,
+    b ={ sigma }=> false ->
+    (If b Then s1 End) -{ sigma }-> sigma
+| e_ifthentrue : forall b s1 sigma sigma1,
+    b ={ sigma }=> true ->
+    s1 -{ sigma }-> sigma1 ->
+    (If b Then s1 End) -{ sigma }-> sigma1
+| e_iffalse : forall b s1 s2 sigma sigma1,
+    b ={ sigma }=> false ->
+    s2 -{ sigma }-> sigma1 ->
+    (If b Then s1 Else s2 End) -{ sigma }-> sigma1
+| e_iftrue : forall b s1 s2 sigma sigma1,
+    b ={ sigma }=> true ->
+    s1 -{ sigma }-> sigma1 ->
+    (If b Then s1 Else s2 End) -{ sigma }-> sigma1
+| e_forfalse : forall A cond C D sigma sigma1,
+    A -{ sigma }-> sigma1 ->
+    cond ={ sigma1 }=> false ->
+    ( For( A ;;; cond ;;; C )Do D ) -{ sigma }-> sigma1
+| e_fortrue : forall A cond C D sigma sigma1 sigma',
+    A -{ sigma }-> sigma1 ->
+    cond ={ sigma1 }=> true ->
+    ( D ;; For( C ;;; cond ;;; C )Do D ) -{ sigma1 }-> sigma' -> (*De fiecare data evaluez instructiunea for intr un nou environment, determinat de C.*)
+    ( For( A ;;; cond ;;; C )Do D ) -{ sigma }-> sigma'
+| e_whilefalse : forall b s sigma,
+    b ={ sigma }=> false ->
+    while b s -{ sigma }-> sigma
+| e_whiletrue : forall b s sigma sigma',
+    b ={ sigma }=> true ->
+    (s ;; while b s) -{ sigma }-> sigma' ->
+    while b s -{ sigma }-> sigma'
+where "s -{ sigma }-> sigma'" := (eval s sigma sigma').
+
+(*Mai jos puteti gasi cateva exemple care demonstreaza faptul ca 
+un anumit program este evaluat la o stare finala.*)
+
+Hint Constructors aeval.
+Hint Constructors eval.
+Hint Unfold is_declared.
+Hint Unfold update.
+
+(*exemplu pentru while*)
+
+Definition sum0 :=
+  n ::= 1 ;;
+  int i ;;
+  i ::= 1 ;; 
+  sum ::= 0.
+
+Example eval_sum0 :  (*variabila sum nu este declarata*)
+  exists state, sum0 -{ env1 }-> state /\ state i = 1.
+Proof.
+ eexists.
+ split.
+ - unfold sum0.
+  * eapply e_seq.
+    ** eapply e_assignment; eauto. unfold is_declared. simpl. Abort.
+
+Definition sum0' :=
+  int a[:2] ;; 
+  a[:1] ::= 1.
+
+Example eval_sumo' :  
+  exists state, sum0' -{ env0 }-> state /\ state (a[:1]) = 1.
+Proof.
+  eexists.
+  split.
+  - unfold sum0'.
+   * eapply e_seq.
+    ** eapply e_decl_array; eauto.
+    ** eapply e_assignment_array.
+      *** eauto.
+      *** reflexivity.
+      *** eapply var. unfold update. simpl. reflexivity.
+      *** omega.
+      *** eapply const.
+      *** unfold update. simpl. reflexivity.
+  - simpl. reflexivity.
+Qed.
+ 
+Definition sum2 :=
+  int a[:3] ;; 
+  initializer_list a (cons 1 (cons 2 nil)).
+Example eval_sum2 :  
+  exists state, sum2 -{ env0 }-> state /\ state (a[:2]) = 2.
+Proof.
+  eexists.
+  split.
+  - unfold sum2.
+   * eapply e_seq.
+    ** eapply e_decl_array; eauto.
+    ** eapply e_initializer_list; eauto.
+  - simpl. unfold update. simpl. reflexivity.
+Qed.
+
+
+Definition sum1 :=
+  int n;;
+  int i;;
+  int sum;;
+  n ::= 1 ;;
+  i ::= 1 ;; 
+  sum ::= 0 ;;
+  while ( i <=' n ) (
+          sum ::= sum +' i ;;
+          i ::= i +' 1
+        ).
+
+Example eval_sum1 : 
+  exists state, sum1 -{ env0 }-> state /\ state sum = 1.
+Proof.
+  eexists.
+  split.
+  - unfold sum1.
+    * eapply e_seq.
+      ** eapply e_decl; eauto.
+      ** eapply e_seq.
+        *** eapply e_decl; eauto.
+        *** eapply e_seq.
+           **** eapply e_decl; eauto.
+           **** eapply e_seq.
+               ***** eapply e_assignment; eauto.
+               ***** eapply e_seq.
+                    ******** eapply e_assignment; eauto.
+                    ******** eapply e_seq.
+                            ********* eapply e_assignment; eauto.
+                            ********* eapply e_whiletrue.
+                             ********** eapply e_lessthan; eauto. apply var. unfold update. simpl. reflexivity. apply var. unfold update. simpl. reflexivity. simpl. reflexivity.
+                             ********** eapply e_seq.
+                               *********** eapply e_seq.
+                                 ************ eapply e_assignment ; eauto. eapply add. apply var. unfold update. simpl. reflexivity. apply var. unfold update. simpl. reflexivity. simpl. reflexivity.
+                                 ************ eapply e_assignment; eauto. eapply add. apply var. unfold update. simpl. reflexivity. apply const. simpl. reflexivity.
+                               *********** eapply e_whilefalse.
+                                           eapply e_lessthan; eauto. apply var. unfold update. simpl. reflexivity. apply var. unfold update. simpl. reflexivity. simpl. reflexivity.
+  - simpl. unfold update. simpl. reflexivity.
+Qed.
+       
+
+ (*Definition init_list := list nat.
+Definition list1 := cons 1 (cons 2 nil).
+Compute list1.
+
+Fixpoint suma (l1 : list nat) : nat :=
+match l1 with
+| nil => 0
+| cons n l => n + (suma l)
+end.
+
+Compute suma list1.
+Compute S(3).
+(*Definition adr1 : adress :=
+   fun s =>
+    if (eqb_string s "a")
+    then 1000
+    else 0.
+Compute adr1 "a".
+
+Definition array_val1 := update_array array_val 1000 1.
+Compute array_val1 1000. *)
+
+Fixpoint initializer_l (s : string) (min : nat) (env : Env) (l : list nat) :=
+match l with
+| nil => env
+| cons n l => initializer_l s (S(min)) (update env (array s min) n) l
+ end.
+
+Compute (initializer_l "a" 1 env0 list1) ("a"[:2]). *)
